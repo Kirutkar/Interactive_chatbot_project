@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Python Chatbot</title>
+    <link rel="stylesheet" type="text/css" href="/static/tempor.css">
+    <script>
+        let timer; // Timer variable
+        let timeRemaining = 30; // Default time for each question
+        let isTimeUp = false; // Flag to track if the timer expired
+        const timerElement = document.createElement("div"); // Timer element
+
+        async function sendMessage(event) {
+            event.preventDefault();
+            const userInput = document.getElementById("user_input").value.trim();
+            if (!userInput) {
+                alert("Please enter a valid message.");
+                return;
+            }
+
+            const responseBox = document.getElementById("response-box");
+            responseBox.innerHTML += `<p><strong>User:</strong> ${userInput}</p>`;
+
+            try {
+                const response = await fetch("/get_response", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ user_input: userInput }),
+                });
+
+                const data = await response.json();
+                responseBox.innerHTML += `<p><strong>Chatbot:</strong> ${data.reply}</p>`;
+                document.getElementById("user_input").value = "";
+            } catch (error) {
+                alert("Error: Unable to send the message.");
+            }
+        }
+
+        async function startQuiz() {
+            const difficulty = document.getElementById("difficulty").value;
+
+            // Reset score to 0 when starting a new quiz
+            document.getElementById("score-box").innerHTML = `Score: 0`;
+            isTimeUp = false; // Reset timeUp flag
+
+            try {
+                const response = await fetch("/start_quiz", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ user_id: "default", level: difficulty }),
+                });
+
+                const data = await response.json();
+                const quizBox = document.getElementById("quiz-box");
+
+                if (data.question && data.options) {
+                    timeRemaining = 30; // Reset timer for the first question
+
+                    quizBox.innerHTML = `
+                        <p class="quiz-question"><strong>Question:</strong> ${data.question}</p>
+                        <form id="quiz-form">
+                            ${data.options.map((option, index) => `
+                                <div class="quiz-option">
+                                    <input type="radio" id="option${index}" name="answer" value="${option.split('. ')[0]}">
+                                    <label for="option${index}">${option}</label>
+                                </div>
+                            `).join('')}
+                        </form>
+                        <button type="button" class="btn btn-primary" onclick="submitAnswer()">Submit Answer</button>
+                    `;
+                    startTimer(); // Start the timer after rendering the first question
+                } else {
+                    quizBox.innerHTML = `<p class="quiz-end">Quiz finished! Great job!</p>`;
+                    clearTimer();
+                }
+            } catch (error) {
+                alert("Error: Unable to start the quiz.");
+            }
+        }
+
+        async function submitAnswer() {
+            clearTimer(); // Clear the timer when submitting an answer
+            const form = document.getElementById("quiz-form");
+            const answer = form.querySelector('input[name="answer"]:checked')?.value;
+
+            if (!answer) {
+                alert("Please select an answer.");
+                return;
+            }
+
+            try {
+                const response = await fetch("/submit_answer", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ answer, user_id: "default", timeUp: isTimeUp }),
+                });
+
+                const data = await response.json();
+                const quizBox = document.getElementById("quiz-box");
+                const scoreBox = document.getElementById("score-box");
+
+                quizBox.innerHTML = `<p class="quiz-feedback">${data.reply}</p>`;
+                scoreBox.innerHTML = `Score: ${data.score}`;
+
+                if (data.next_question && data.options) {
+                    timeRemaining = 30; // Reset the timer for the next question
+                    isTimeUp = false; // Reset the flag for the next question
+                    quizBox.innerHTML += `
+                        <p class="quiz-question"><strong>Next Question:</strong> ${data.next_question}</p>
+                        <form id="quiz-form">
+                            ${data.options.map((option, index) => `
+                                <div class="quiz-option">
+                                    <input type="radio" id="option${index}" name="answer" value="${option.split('. ')[0]}">
+                                    <label for="option${index}">${option}</label>
+                                </div>
+                            `).join('')}
+                            <button type="button" class="btn btn-primary" onclick="submitAnswer()">Submit Answer</button>
+                        </form>
+                    `;
+                    startTimer(); // Start the timer for the next question
+                } else {
+                    quizBox.innerHTML += `<p class="quiz-end">Quiz Completed! Great job!</p>`;
+                }
+            } catch (error) {
+                alert("Error: Unable to submit the answer.");
+            }
+        }
+
+        function startTimer() {
+            clearTimer(); // Clear any existing timer
+            const quizBox = document.getElementById("quiz-box");
+            timerElement.textContent = `Time remaining: ${timeRemaining}s`;
+            timerElement.className = "timer-display";
+            quizBox.appendChild(timerElement);
+
+            timer = setInterval(() => {
+                timeRemaining--;
+                timerElement.textContent = `Time remaining: ${timeRemaining}s`;
+
+                if (timeRemaining <= 0) {
+                    clearTimer();
+                    isTimeUp = true; // Mark the timer as expired
+                    alert("Time's up! Moving to the next question.");
+                    submitAnswer(); // Automatically submit an empty answer
+                }
+            }, 1000);
+        }
+
+        function clearTimer() {
+            clearInterval(timer);
+            if (timerElement.parentNode) {
+                timerElement.parentNode.removeChild(timerElement);
+            }
+        }
+
+        async function clearHistory() {
+            try {
+                const response = await fetch("/clear_history", { method: "POST" });
+                const data = await response.json();
+                document.getElementById("response-box").innerHTML = "";
+                document.getElementById("quiz-box").innerHTML = "";
+                alert(data.reply || "Chat history cleared!");
+            } catch (error) {
+                alert("Error: Unable to clear history.");
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="main-container">
+        <div id="header">
+            <h1>Interactive Python Chatbot</h1>
+        </div>
+        <div id="content-container">
+            <!-- Chatbot Section -->
+            <div id="chat-section">
+                <h2>Chatbot</h2>
+                <div id="response-box"></div>
+                <form id="chat-form" onsubmit="sendMessage(event)">
+                    <input type="text" id="user_input" placeholder="Type your message..." required>
+                    <button type="submit">Send</button>
+                </form>
+                <button class="clear-history-btn" onclick="clearHistory()">Clear History</button>
+            </div>
+
+            <!-- Quiz Section -->
+            <div id="quiz-section">
+                <h2>Quiz</h2>
+                <div>
+                    <label for="difficulty">Select Difficulty:</label>
+                    <select id="difficulty">
+                        <option value="beginner">Beginner</option>
+                        <option value="intermediate">Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="startQuiz()">Start Quiz</button>
+                </div>
+                <div id="quiz-box"></div>
+                <div id="score-box" style="margin-top: 10px; font-size: 16px; font-weight: bold; color: #0056b3;">Score: 0</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

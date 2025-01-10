@@ -1,4 +1,4 @@
-Interactive Python Chatbot
+ Interactive Python Chatbot
 
 📚 Overview
 
@@ -146,7 +146,7 @@ Contributions are welcome! Please open an issue or create a pull request for any
 
 📧 Contact
 
-Feel free to reach out for feedback or collaboration:
+Feel free to reach out for feedback :
 
 Email:kiruthikaramalingam@gmail.com
 

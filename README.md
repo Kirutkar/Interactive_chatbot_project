@@ -54,7 +54,6 @@ requests
 Interactive_Python_Chatbot/
 
 ├── app.py                 # Main application file
-
 ├── routes/
 
 │   ├── chatbot_routes.py  # Flask routes for chatbot and quiz logic
